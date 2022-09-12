@@ -11,14 +11,19 @@ final class MovieQuizViewController: UIViewController {
     @IBOutlet private weak var questionLabel: UILabel!
     @IBOutlet private weak var questionNumber: UILabel!
     @IBOutlet private weak var yesButton: UIButton!
+    @IBOutlet weak var activityIndicator: UIActivityIndicatorView!
     @IBOutlet private weak var noButton: UIButton!
 
     // MARK: - Properties
     
-    private let questions: [QuizQuestion] = DataSource.mockQuestions
-    private var currentQuestion: QuizQuestion?
     private var currentQuestionIndex: Int = 0
     private var gamesScore: QuizScores = QuizScores()
+    
+    private let questionsAmount: Int = 10
+    private let questionFactory: QuestionFactoryProtocol = QuestionFactory()
+    private var currentQuestion: QuizQuestion?
+    
+    private var resultAlertPresenter: ResultAlertPresenter? = nil
 
     // MARK: - Lifecycle
     
@@ -26,6 +31,14 @@ final class MovieQuizViewController: UIViewController {
         super.viewDidLoad()
         imageView.layer.cornerRadius = 20
         showQuestion()
+        
+        resultAlertPresenter = ResultAlertPresenter(viewController: self)
+        
+        print(NSHomeDirectory())
+        UserDefaults.standard.set(true, forKey: "viewDidLoad")
+        print(Bundle.main.bundlePath)
+        var documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        print(documentsURL)
     }
     // MARK: - Actions
     
@@ -41,10 +54,39 @@ final class MovieQuizViewController: UIViewController {
 
     // MARK: - Business Logic
     
+    private func showLoadingIndicator() {
+        activityIndicator.startAnimating()
+    }
+    
+    private func hideLoadingIndicator() {
+        activityIndicator.stopAnimating()
+    }
+    
+    private func showNetworkError(message: String) {
+        hideLoadingIndicator()
+        
+        let alertController = UIAlertController(
+            title: "Error",
+            message: message,
+            preferredStyle: .alert
+        )
+        
+        let tryAgainAction = UIAlertAction(
+            title: "Try again",
+            style: .default
+        ) { _ in
+            print("trying again")
+        }
+        
+        alertController.addAction(tryAgainAction)
+        
+        present(alertController, animated: true)
+    }
+    
     private func showQuestion() {
         /// Установили текущий вопрос. Так как у нас квиз начинается с 1го вопроса,
         /// то и берем из массива вопросов 1й элемент
-        currentQuestion = questions[safe: currentQuestionIndex] // метод лежит в Array+Extensions
+        currentQuestion = questionFactory.requestNextQuestion()
         guard let currentQuestion = currentQuestion else {
             return
         }
@@ -62,7 +104,9 @@ final class MovieQuizViewController: UIViewController {
     }
 
     private func show(quiz result: QuizResultsViewModel) {
-        showResultAlert(result: result)
+        resultAlertPresenter?.showResultAlert(result: result) { [weak self] in
+            self?.restart()
+        }
     }
 
     private func correctAnswerCounter() {
@@ -106,41 +150,29 @@ final class MovieQuizViewController: UIViewController {
             self.noButton.isEnabled = false
         }
     }
+    
+    private func showResults() {
+        print("Пора показать результат")
+        gamesScore.itIsRecord() // проверяем рекорд ли это
+        
+        let title = gamesScore.score == 10 ? "Вы выиграли!" : "Этот раунд окончен!"
+        
+        let winResult = QuizResultsViewModel (
+            title: title,
+            text:  """
+                        Ваш результат: \(gamesScore.score)/\(questionsAmount)
+                        Количество сыгранных квизов: \(gamesScore.gamesPlayed)
+                        Рекорд: \(gamesScore.record)/\(questionsAmount) (\(gamesScore.recordTime))
+                        Средняя точность: \(gamesScore.accuracyAverage())%
+                        """,
+            buttonText: "Сыграть еще раз"
+        )
+        show(quiz: winResult)
+    }
 
     private func showNextQuestionOrResults() {
-        if currentQuestionIndex == questions.count - 1 { // - 1 потому что индекс начинается с 0, а длинна массива — с 1
-            print("Пора показать результат")
-            gamesScore.itIsRecord() // проверяем рекорд ли это
-            if gamesScore.score == 10 {
-                let winResult = QuizResultsViewModel (
-                    title: "Вы выиграли!",
-                    text:  """
-                    Ваш результат: \(gamesScore.score)/\(questions.count)
-                    Количество сыгранных квизов: \(gamesScore.gamesPlayed)
-                    Рекорд: \(gamesScore.record)/\(questions.count) (\(gamesScore.recordTime))
-                    Средняя точность: \(gamesScore.accuracyAverage())%
-                    """,
-                    buttonText: "Сыграть еще раз"
-                )
-                show(quiz: winResult)
-            } else {
-                let result = QuizResultsViewModel(
-                    title: "Этот раунд окончен!",
-                    text:
-                    """
-                    Ваш результат: \(gamesScore.score)/\(questions.count)
-                    Количество сыгранных квизов: \(gamesScore.gamesPlayed)
-                    Рекорд: \(gamesScore.record)/\(questions.count) (\(gamesScore.recordTime))
-                    Средняя точность: \(gamesScore.accuracyAverage())%
-                    """,
-                    buttonText: "Сыграть еще раз"
-                )
-                show(quiz: result)
-            }
-                
-            // создаём объекты всплывающего окна
-            // показать результат квиза
-
+        if currentQuestionIndex == questionsAmount - 1 { // - 1 потому что индекс начинается с 0, а длинна массива — с 1
+            showResults()
         } else {
             currentQuestionIndex += 1
             // увеличиваем индекс текущего урока на 1; таким образом мы сможем получить следующий урок
@@ -159,72 +191,11 @@ final class MovieQuizViewController: UIViewController {
         return QuizStepViewModel(
             image: UIImage(named: model.image) ?? .remove,
             question: model.text,
-            questionNumber: "\(currentQuestionIndex + 1)/\(questions.count)"
+            questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
         )
     }
 
     // Выносим показ окна алерта в отдельную функцию
-    private func showResultAlert (result: QuizResultsViewModel) {
-            let alert = UIAlertController(title: result.title, // заголовок всплывающего окна
-            message: result.text, /* текст во всплывающем окне */
-            preferredStyle: .alert) // preferredStyle может быть .alert или .actionSheet
 
-            // создаём для него кнопки с действиями
-            let action = UIAlertAction(
-                title: "Сыграть ещё раз",
-                style: .default, handler: { _ in
-                print("Игра началась заново")
-                self.restart() // заново запускаем квиз с номера 1
-            })
-
-            // добавляем в алерт кнопки
-            alert.addAction(action)
-
-            // показываем всплывающее окно
-            self.present(alert, animated: true, completion: nil)
-        }
-
-    enum DataSource {
-        static let mockQuestions: [QuizQuestion] = [
-            QuizQuestion(
-                image: "Deadpool",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true), //  Настоящий рейтинг: 8
-            QuizQuestion(
-                image: "The Dark Knight",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true), // Настоящий рейтинг: 9
-            QuizQuestion(
-                image: "The Godfather",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true),  // Настоящий рейтинг: 9,2
-            QuizQuestion(
-                image: "Kill Bill",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true), // Настоящий рейтинг: 8,1
-            QuizQuestion(
-                image: "The Avengers",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true), // Настоящий рейтинг: 8
-            QuizQuestion(
-                image: "The Green Knight",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: true), //  Настоящий рейтинг: 6,6
-            QuizQuestion(
-                image: "Old",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: false), // Настоящий рейтинг: 5,8
-            QuizQuestion(
-                image: "The Ice Age Adventures of Buck Wild",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: false), //  Настоящий рейтинг: 4,3
-            QuizQuestion(
-                image: "Tesla",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: false), // Настоящий рейтинг: 5,1
-            QuizQuestion(
-                image: "Vivarium",
-                text: "Рейтинг этого фильма больше, чем 6?",
-                correctAnswer: false)] //  Настоящий рейтинг: 5,8
-    }
 }
+
