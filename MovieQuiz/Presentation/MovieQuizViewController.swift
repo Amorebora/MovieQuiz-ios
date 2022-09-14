@@ -3,7 +3,23 @@
 
 import UIKit
 
-final class MovieQuizViewController: UIViewController {
+final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
+    
+    func didReceiveNextQuestion(question: QuizQuestion?) {
+        guard let question = question else { return }
+        
+        currentQuestion = question
+        showQuestion(question: question)
+    }
+    
+    func didLoadDataFromServer() {
+        questionFactory.requestNextQuestion()
+    }
+    
+    func didFailToLoadData(with: Error) {
+        showNetworkError(message: with.localizedDescription)
+    }
+    
     
     // MARK: - Outlets
     
@@ -20,7 +36,8 @@ final class MovieQuizViewController: UIViewController {
     private var gamesScore: QuizScores = QuizScores()
     
     private let questionsAmount: Int = 10
-    private let questionFactory: QuestionFactoryProtocol = QuestionFactory()
+    private var questionFactory: QuestionFactoryProtocol!
+    
     private var currentQuestion: QuizQuestion?
     
     private var resultAlertPresenter: ResultAlertPresenter? = nil
@@ -29,16 +46,16 @@ final class MovieQuizViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        questionFactory = QuestionFactory(
+            moviesLoader: MoviesLoader(),
+            delegate: self
+        )
+        
         imageView.layer.cornerRadius = 20
-        showQuestion()
+        questionFactory.loadData()
         
         resultAlertPresenter = ResultAlertPresenter(viewController: self)
-        
-        print(NSHomeDirectory())
-        UserDefaults.standard.set(true, forKey: "viewDidLoad")
-        print(Bundle.main.bundlePath)
-        var documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        print(documentsURL)
     }
     // MARK: - Actions
     
@@ -83,15 +100,12 @@ final class MovieQuizViewController: UIViewController {
         present(alertController, animated: true)
     }
     
-    private func showQuestion() {
+    private func showQuestion(question: QuizQuestion) {
         /// Установили текущий вопрос. Так как у нас квиз начинается с 1го вопроса,
         /// то и берем из массива вопросов 1й элемент
-        currentQuestion = questionFactory.requestNextQuestion()
-        guard let currentQuestion = currentQuestion else {
-            return
-        }
 
-        let questionViewModel = convert(model: currentQuestion)
+
+        let questionViewModel = convert(model: question)
         show(quiz: questionViewModel)
 
     }
@@ -176,7 +190,7 @@ final class MovieQuizViewController: UIViewController {
         } else {
             currentQuestionIndex += 1
             // увеличиваем индекс текущего урока на 1; таким образом мы сможем получить следующий урок
-            showQuestion()
+            questionFactory.requestNextQuestion()
             // показать следующий вопрос
         }
     }
@@ -184,12 +198,12 @@ final class MovieQuizViewController: UIViewController {
     private func restart() {
         currentQuestionIndex = 0 // Сбросил вопрос на первый
         gamesScore.restartQuiz()
-        showQuestion()
+        questionFactory.requestNextQuestion()
     }
 
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
         return QuizStepViewModel(
-            image: UIImage(named: model.image) ?? .remove,
+            image: UIImage(data: model.image) ?? .remove,
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
         )
