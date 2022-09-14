@@ -18,6 +18,8 @@ struct ResultAlertPresenter {
             }
         )
         
+        action.accessibilityIdentifier = "continueGame"
+        
         // добавляем в алерт кнопки
         alert.addAction(action)
         
