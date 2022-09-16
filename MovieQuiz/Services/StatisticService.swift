@@ -32,9 +32,9 @@ final class StatisticServiceImplementation: StatisticService {
     private enum Keys: String {
         case correct, total, bestGame, gamesCount
     }
-
+    
     private let userDefaults = UserDefaults.standard
-
+    
     private(set) var gamesCount: Int {
         get {
             userDefaults.integer(forKey: Keys.gamesCount.rawValue)
@@ -53,7 +53,7 @@ final class StatisticServiceImplementation: StatisticService {
         }
     }
     
- 
+    
     private(set) var bestGame: GameRecord {
         get {
             guard

@@ -29,7 +29,7 @@ struct NetworkClient: NetworkRouting {
             
             // Проверяем, что нам пришёл успешный код ответа
             if let response = response as? HTTPURLResponse,
-                response.statusCode < 200 || response.statusCode >= 300 {
+               response.statusCode < 200 || response.statusCode >= 300 {
                 handler(.failure(NetworkError.codeError))
                 return
             }

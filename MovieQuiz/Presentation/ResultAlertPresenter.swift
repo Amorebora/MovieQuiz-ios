@@ -7,8 +7,8 @@ struct ResultAlertPresenter {
     
     func showResultAlert (result: QuizResultsViewModel, onAction: @escaping () -> Void) {
         let alert = UIAlertController(title: result.title, // заголовок всплывающего окна
-            message: result.text, /* текст во всплывающем окне */
-            preferredStyle: .alert) // preferredStyle может быть .alert или .actionSheet
+                                      message: result.text, /* текст во всплывающем окне */
+                                      preferredStyle: .alert) // preferredStyle может быть .alert или .actionSheet
         
         // создаём для него кнопки с действиями
         let action = UIAlertAction(
