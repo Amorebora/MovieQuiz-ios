@@ -3,7 +3,26 @@
 
 import UIKit
 
-final class MovieQuizViewController: UIViewController {
+final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
+    
+    func didReceiveNextQuestion(question: QuizQuestion?) {
+        guard let question = question else { return }
+        
+        currentQuestion = question
+        hideLoadingIndicator()
+        showQuestion(question: question)
+    }
+    
+    func didLoadDataFromServer() {
+        questionFactory.requestNextQuestion()
+    }
+    
+    func didFailToLoadData(with: Error) {
+        DispatchQueue.main.async { [weak self] in
+            self?.showNetworkError(message: with.localizedDescription)
+        }
+    }
+    
     
     // MARK: - Outlets
     
@@ -17,11 +36,14 @@ final class MovieQuizViewController: UIViewController {
     // MARK: - Properties
     
     private var currentQuestionIndex: Int = 0
-    private var gamesScore: QuizScores = QuizScores()
+    private var gameScore: Int = 0
     
     private let questionsAmount: Int = 10
-    private let questionFactory: QuestionFactoryProtocol = QuestionFactory()
+    private var questionFactory: QuestionFactoryProtocol!
+    
     private var currentQuestion: QuizQuestion?
+
+    private var statisticsService: StatisticService?
     
     private var resultAlertPresenter: ResultAlertPresenter? = nil
 
@@ -29,16 +51,18 @@ final class MovieQuizViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        imageView.layer.cornerRadius = 20
-        showQuestion()
-        
+
+        questionFactory = QuestionFactory(
+            moviesLoader: MoviesLoader(),
+            delegate: self
+        )
+        statisticsService = StatisticServiceImplementation()
         resultAlertPresenter = ResultAlertPresenter(viewController: self)
         
-        print(NSHomeDirectory())
-        UserDefaults.standard.set(true, forKey: "viewDidLoad")
-        print(Bundle.main.bundlePath)
-        var documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        print(documentsURL)
+        imageView.layer.cornerRadius = 20
+
+        showLoadingIndicator()
+        questionFactory.loadData()
     }
     // MARK: - Actions
     
@@ -74,8 +98,9 @@ final class MovieQuizViewController: UIViewController {
         let tryAgainAction = UIAlertAction(
             title: "Try again",
             style: .default
-        ) { _ in
-            print("trying again")
+        ) { [weak self] _ in
+            self?.showLoadingIndicator()
+            self?.questionFactory.loadData()
         }
         
         alertController.addAction(tryAgainAction)
@@ -83,15 +108,12 @@ final class MovieQuizViewController: UIViewController {
         present(alertController, animated: true)
     }
     
-    private func showQuestion() {
+    private func showQuestion(question: QuizQuestion) {
         /// Установили текущий вопрос. Так как у нас квиз начинается с 1го вопроса,
         /// то и берем из массива вопросов 1й элемент
-        currentQuestion = questionFactory.requestNextQuestion()
-        guard let currentQuestion = currentQuestion else {
-            return
-        }
 
-        let questionViewModel = convert(model: currentQuestion)
+
+        let questionViewModel = convert(model: question)
         show(quiz: questionViewModel)
 
     }
@@ -109,10 +131,6 @@ final class MovieQuizViewController: UIViewController {
         }
     }
 
-    private func correctAnswerCounter() {
-        gamesScore.score += 1
-    }
-
 
     private func showAnswerResult(answer: Bool) {
 
@@ -126,9 +144,9 @@ final class MovieQuizViewController: UIViewController {
         let redColor = UIColor(named: "red") ?? .red
         let borderColor = isCorrect ? greenColor : redColor
 
-    if answer == currentQuestion.correctAnswer {
-        gamesScore.score += 1
-    } else {}
+        if answer == currentQuestion.correctAnswer {
+            gameScore += 1
+        } else {}
 
         imageView.layer.masksToBounds = true // даём разрешение на рисование рамки
         imageView.layer.borderWidth = 8 // толщина рамки
@@ -152,18 +170,31 @@ final class MovieQuizViewController: UIViewController {
     }
     
     private func showResults() {
+        guard let statisticsService = statisticsService else { return }
+
         print("Пора показать результат")
-        gamesScore.itIsRecord() // проверяем рекорд ли это
-        
-        let title = gamesScore.score == 10 ? "Вы выиграли!" : "Этот раунд окончен!"
+
+        statisticsService.store(
+            correct: gameScore,
+            total: questionsAmount
+        )
+
+        let title = gameScore == questionsAmount ? "Вы выиграли!" : "Этот раунд окончен!"
+
+
+        let totalGames = statisticsService.gamesCount
+        let bestGame = statisticsService.bestGame
+
+        let accuracy = statisticsService.totalAccuracy * 100
+        let accuracyString = String(format: "%.2f", accuracy)
         
         let winResult = QuizResultsViewModel (
             title: title,
             text:  """
-                        Ваш результат: \(gamesScore.score)/\(questionsAmount)
-                        Количество сыгранных квизов: \(gamesScore.gamesPlayed)
-                        Рекорд: \(gamesScore.record)/\(questionsAmount) (\(gamesScore.recordTime))
-                        Средняя точность: \(gamesScore.accuracyAverage())%
+                        Ваш результат: \(gameScore)/\(questionsAmount)
+                        Количество сыгранных квизов: \(totalGames)
+                        Рекорд: \(bestGame.correct)/\(bestGame.total) (\(bestGame.date.dateTimeString))
+                        Средняя точность: \(accuracyString)%
                         """,
             buttonText: "Сыграть еще раз"
         )
@@ -176,20 +207,23 @@ final class MovieQuizViewController: UIViewController {
         } else {
             currentQuestionIndex += 1
             // увеличиваем индекс текущего урока на 1; таким образом мы сможем получить следующий урок
-            showQuestion()
+            showLoadingIndicator()
+            questionFactory.requestNextQuestion()
             // показать следующий вопрос
         }
     }
 
     private func restart() {
         currentQuestionIndex = 0 // Сбросил вопрос на первый
-        gamesScore.restartQuiz()
-        showQuestion()
+        gameScore = 0
+
+        showLoadingIndicator()
+        questionFactory.requestNextQuestion()
     }
 
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
         return QuizStepViewModel(
-            image: UIImage(named: model.image) ?? .remove,
+            image: UIImage(data: model.image) ?? .remove,
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
         )
