@@ -1,6 +1,7 @@
 import XCTest // не забывайте импортировать фреймворк для тестирования
 @testable import MovieQuiz // импортируем приложение для тестирования
 
+// swiftlint:disable all
 class MoviesLoaderTests: XCTestCase {
     struct StubNetworkClient: NetworkRouting {
         

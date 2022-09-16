@@ -34,23 +34,22 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     @IBOutlet private weak var noButton: UIButton!
 
     // MARK: - Properties
-    
-    private var currentQuestionIndex: Int = 0
+
     private var gameScore: Int = 0
-    
-    private let questionsAmount: Int = 10
     private var questionFactory: QuestionFactoryProtocol!
     
     private var currentQuestion: QuizQuestion?
-
     private var statisticsService: StatisticService?
-    
     private var resultAlertPresenter: ResultAlertPresenter? = nil
+
+    private let presenter = MovieQuizPresenter()
 
     // MARK: - Lifecycle
     
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        presenter.viewController = self
 
         questionFactory = QuestionFactory(
             moviesLoader: MoviesLoader(),
@@ -67,13 +66,13 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     // MARK: - Actions
     
     @IBAction private func noButtonClicked(_ sender: UIButton) {
-        showAnswerResult(answer: false)
-        /* question: questions[currentQuestionIndex]) */
+        presenter.currentQuestion = currentQuestion
+        presenter.yesButtonClicked()
     }
 
     @IBAction private func yesButtonClicked(_ sender: UIButton) {
-        showAnswerResult(answer: true)
-        /* question: questions[currentQuestionIndex]) */
+        presenter.currentQuestion = currentQuestion
+        presenter.noButtonClicked()
     }
 
     // MARK: - Business Logic
@@ -113,7 +112,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         /// то и берем из массива вопросов 1й элемент
 
 
-        let questionViewModel = convert(model: question)
+        let questionViewModel = presenter.convert(model: question)
         show(quiz: questionViewModel)
 
     }
@@ -132,21 +131,12 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
 
 
-    private func showAnswerResult(answer: Bool) {
-
-        guard let currentQuestion = currentQuestion
-        else {
-            return
-        }
-
-        let isCorrect = (answer == currentQuestion.correctAnswer)
+    func showAnswerResult(isCorrect: Bool) {
         let greenColor = UIColor(named: "green") ?? .green
         let redColor = UIColor(named: "red") ?? .red
         let borderColor = isCorrect ? greenColor : redColor
 
-        if answer == currentQuestion.correctAnswer {
-            gameScore += 1
-        } else {}
+
 
         imageView.layer.masksToBounds = true // даём разрешение на рисование рамки
         imageView.layer.borderWidth = 8 // толщина рамки
@@ -176,10 +166,10 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
 
         statisticsService.store(
             correct: gameScore,
-            total: questionsAmount
+            total: presenter.questionsAmount
         )
 
-        let title = gameScore == questionsAmount ? "Вы выиграли!" : "Этот раунд окончен!"
+        let title = gameScore == presenter.questionsAmount ? "Вы выиграли!" : "Этот раунд окончен!"
 
 
         let totalGames = statisticsService.gamesCount
@@ -191,7 +181,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         let winResult = QuizResultsViewModel (
             title: title,
             text:  """
-                        Ваш результат: \(gameScore)/\(questionsAmount)
+                        Ваш результат: \(gameScore)/\(presenter.questionsAmount)
                         Количество сыгранных квизов: \(totalGames)
                         Рекорд: \(bestGame.correct)/\(bestGame.total) (\(bestGame.date.dateTimeString))
                         Средняя точность: \(accuracyString)%
@@ -202,10 +192,10 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
 
     private func showNextQuestionOrResults() {
-        if currentQuestionIndex == questionsAmount - 1 { // - 1 потому что индекс начинается с 0, а длинна массива — с 1
+        if presenter.isLastQuestion() { // - 1 потому что индекс начинается с 0, а длинна массива — с 1
             showResults()
         } else {
-            currentQuestionIndex += 1
+            presenter.switchToNextQuestion()
             // увеличиваем индекс текущего урока на 1; таким образом мы сможем получить следующий урок
             showLoadingIndicator()
             questionFactory.requestNextQuestion()
@@ -214,22 +204,11 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
 
     private func restart() {
-        currentQuestionIndex = 0 // Сбросил вопрос на первый
+        presenter.resetQuestionIndex() // Сбросил вопрос на первый
         gameScore = 0
 
         showLoadingIndicator()
         questionFactory.requestNextQuestion()
     }
-
-    private func convert(model: QuizQuestion) -> QuizStepViewModel {
-        return QuizStepViewModel(
-            image: UIImage(data: model.image) ?? .remove,
-            question: model.text,
-            questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
-        )
-    }
-
-    // Выносим показ окна алерта в отдельную функцию
-
 }
 
