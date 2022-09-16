@@ -9,6 +9,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         guard let question = question else { return }
         
         currentQuestion = question
+        hideLoadingIndicator()
         showQuestion(question: question)
     }
     
@@ -17,7 +18,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     func didFailToLoadData(with: Error) {
-        showNetworkError(message: with.localizedDescription)
+        DispatchQueue.main.async { [weak self] in
+            self?.showNetworkError(message: with.localizedDescription)
+        }
     }
     
     
@@ -33,12 +36,14 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     // MARK: - Properties
     
     private var currentQuestionIndex: Int = 0
-    private var gamesScore: QuizScores = QuizScores()
+    private var gameScore: Int = 0
     
     private let questionsAmount: Int = 10
     private var questionFactory: QuestionFactoryProtocol!
     
     private var currentQuestion: QuizQuestion?
+
+    private var statisticsService: StatisticService?
     
     private var resultAlertPresenter: ResultAlertPresenter? = nil
 
@@ -51,11 +56,13 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
             moviesLoader: MoviesLoader(),
             delegate: self
         )
+        statisticsService = StatisticServiceImplementation()
+        resultAlertPresenter = ResultAlertPresenter(viewController: self)
         
         imageView.layer.cornerRadius = 20
+
+        showLoadingIndicator()
         questionFactory.loadData()
-        
-        resultAlertPresenter = ResultAlertPresenter(viewController: self)
     }
     // MARK: - Actions
     
@@ -91,8 +98,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         let tryAgainAction = UIAlertAction(
             title: "Try again",
             style: .default
-        ) { _ in
-            print("trying again")
+        ) { [weak self] _ in
+            self?.showLoadingIndicator()
+            self?.questionFactory.loadData()
         }
         
         alertController.addAction(tryAgainAction)
@@ -123,10 +131,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         }
     }
 
-    private func correctAnswerCounter() {
-        gamesScore.score += 1
-    }
-
 
     private func showAnswerResult(answer: Bool) {
 
@@ -140,9 +144,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         let redColor = UIColor(named: "red") ?? .red
         let borderColor = isCorrect ? greenColor : redColor
 
-    if answer == currentQuestion.correctAnswer {
-        gamesScore.score += 1
-    } else {}
+        if answer == currentQuestion.correctAnswer {
+            gameScore += 1
+        } else {}
 
         imageView.layer.masksToBounds = true // даём разрешение на рисование рамки
         imageView.layer.borderWidth = 8 // толщина рамки
@@ -166,18 +170,31 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
     }
     
     private func showResults() {
+        guard let statisticsService = statisticsService else { return }
+
         print("Пора показать результат")
-        gamesScore.itIsRecord() // проверяем рекорд ли это
-        
-        let title = gamesScore.score == 10 ? "Вы выиграли!" : "Этот раунд окончен!"
+
+        statisticsService.store(
+            correct: gameScore,
+            total: questionsAmount
+        )
+
+        let title = gameScore == questionsAmount ? "Вы выиграли!" : "Этот раунд окончен!"
+
+
+        let totalGames = statisticsService.gamesCount
+        let bestGame = statisticsService.bestGame
+
+        let accuracy = statisticsService.totalAccuracy * 100
+        let accuracyString = String(format: "%.2f", accuracy)
         
         let winResult = QuizResultsViewModel (
             title: title,
             text:  """
-                        Ваш результат: \(gamesScore.score)/\(questionsAmount)
-                        Количество сыгранных квизов: \(gamesScore.gamesPlayed)
-                        Рекорд: \(gamesScore.record)/\(questionsAmount) (\(gamesScore.recordTime))
-                        Средняя точность: \(gamesScore.accuracyAverage())%
+                        Ваш результат: \(gameScore)/\(questionsAmount)
+                        Количество сыгранных квизов: \(totalGames)
+                        Рекорд: \(bestGame.correct)/\(bestGame.total) (\(bestGame.date.dateTimeString))
+                        Средняя точность: \(accuracyString)%
                         """,
             buttonText: "Сыграть еще раз"
         )
@@ -190,6 +207,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
         } else {
             currentQuestionIndex += 1
             // увеличиваем индекс текущего урока на 1; таким образом мы сможем получить следующий урок
+            showLoadingIndicator()
             questionFactory.requestNextQuestion()
             // показать следующий вопрос
         }
@@ -197,7 +215,9 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate {
 
     private func restart() {
         currentQuestionIndex = 0 // Сбросил вопрос на первый
-        gamesScore.restartQuiz()
+        gameScore = 0
+
+        showLoadingIndicator()
         questionFactory.requestNextQuestion()
     }
 
