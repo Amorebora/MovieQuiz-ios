@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		387C5DB028D4E2A3009B3146 /* MovieQuizPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387C5DAF28D4E2A3009B3146 /* MovieQuizPresenter.swift */; };
+		387C5DB228D8D4BF009B3146 /* MovieQuizPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387C5DB128D8D4BF009B3146 /* MovieQuizPresenterTests.swift */; };
 		8BEB01B328AD42D900915A99 /* YS Display-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8B8C83CA28969F1C00017A60 /* YS Display-Bold.ttf */; };
 		8BEB01B428AD42E100915A99 /* YS Display-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8B8C83C928969F1C00017A60 /* YS Display-Medium.ttf */; };
 		8BEB01BA28AEA3FD00915A99 /* QuizQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BEB01B928AEA3FC00915A99 /* QuizQuestion.swift */; };
@@ -54,6 +55,7 @@
 
 /* Begin PBXFileReference section */
 		387C5DAF28D4E2A3009B3146 /* MovieQuizPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieQuizPresenter.swift; sourceTree = "<group>"; };
+		387C5DB128D8D4BF009B3146 /* MovieQuizPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieQuizPresenterTests.swift; sourceTree = "<group>"; };
 		8B8C83C928969F1C00017A60 /* YS Display-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "YS Display-Medium.ttf"; sourceTree = "<group>"; };
 		8B8C83CA28969F1C00017A60 /* YS Display-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "YS Display-Bold.ttf"; sourceTree = "<group>"; };
 		8BEB01B928AEA3FC00915A99 /* QuizQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizQuestion.swift; sourceTree = "<group>"; };
@@ -163,6 +165,7 @@
 			children = (
 				9BECB0A728D2210100318CB8 /* ArrayTests.swift */,
 				9BECB0A928D2247100318CB8 /* MoviesLoaderTests.swift */,
+				387C5DB128D8D4BF009B3146 /* MovieQuizPresenterTests.swift */,
 			);
 			path = MovieQuizTests;
 			sourceTree = "<group>";
@@ -376,6 +379,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9BECB0A828D2210100318CB8 /* ArrayTests.swift in Sources */,
+				387C5DB228D8D4BF009B3146 /* MovieQuizPresenterTests.swift in Sources */,
 				9BECB0AA28D2247100318CB8 /* MoviesLoaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
